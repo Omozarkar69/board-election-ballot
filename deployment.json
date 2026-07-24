@@ -1,0 +1,8 @@
+{
+  "network": "preprod",
+  "contract": "board_voting",
+  "contractAddress": "e993870c54966c0b712be1f6066f7867a06a4be845e84366c91deed98850c3bb",
+  "transactionHash": "dcb74c11c18bdecee5bfaaa4f4b4a334cefbf408d5f7f6ecc292d2586134124b",
+  "transactionId": 498540,
+  "verifiedBy": "Midnight Preprod indexer"
+}
