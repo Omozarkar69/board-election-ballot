@@ -1,0 +1,6 @@
+{
+  "cleanUrls": true,
+  "alias": "omozi-klij.vercel.app",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist"
+}
