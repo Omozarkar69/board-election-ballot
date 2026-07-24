@@ -1,0 +1,64 @@
+pragma language_version >= 0.22;
+
+import CompactStandardLibrary;
+
+export enum State {
+  ACTIVE,
+  CLOSED
+}
+
+export ledger state: State;
+export ledger candidate_votes: Map<Uint<32>, Uint<32>>;
+export ledger voters: Map<Bytes<32>, Boolean>;
+export ledger nullifiers: Map<Bytes<32>, Boolean>;
+export ledger election_id: Bytes<32>;
+export ledger admin: Bytes<32>;
+
+constructor(id: Bytes<32>, admin_pk: Bytes<32>) {
+  state = State.ACTIVE;
+  election_id = disclose(id);
+  admin = disclose(admin_pk);
+}
+
+witness localSecretKey(): Bytes<32>;
+
+export circuit registerVoter(voter_pk: Bytes<32>): [] {
+  assert(disclose(publicKey(localSecretKey())) == admin, "Only admin can register voters");
+  voters.insert(disclose(voter_pk), true);
+}
+
+export circuit castVote(candidate_id: Uint<32>): [] {
+  assert(state == State.ACTIVE, "Election is closed");
+  
+  const sk = localSecretKey();
+  const pk = publicKey(sk);
+  
+  // Verify voter is registered
+  assert(voters.member(disclose(pk)), "Voter is not registered");
+  
+  // Verify voter has not voted yet
+  const nullifier = computeNullifier(sk, election_id);
+  assert(!nullifiers.member(disclose(nullifier)), "Voter has already voted");
+  
+  // Mark as voted (disclosing the nullifier to prevent double-voting)
+  nullifiers.insert(disclose(nullifier), true);
+  
+  // Increment candidate tally, checking for existence first
+  const current_votes = candidate_votes.member(disclose(candidate_id)) 
+    ? candidate_votes.lookup(disclose(candidate_id)) 
+    : 0 as Uint<32>;
+  candidate_votes.insert(disclose(candidate_id), (current_votes + 1) as Uint<32>);
+}
+
+export circuit closeElection(): [] {
+  assert(disclose(publicKey(localSecretKey())) == admin, "Only admin can close election");
+  state = State.CLOSED;
+}
+
+export circuit publicKey(sk: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([pad(32, "board:pk:"), sk]);
+}
+
+export circuit computeNullifier(sk: Bytes<32>, id: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<3, Bytes<32>>>([pad(32, "board:nullifier:"), id, sk]);
+}
