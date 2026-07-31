@@ -1,5 +1,7 @@
 # Board Election Ballot
 
+![Frontend CI](https://github.com/Omozarkar69/board-election-ballot/actions/workflows/frontend-ci.yml/badge.svg?branch=main) ![Contract CI](https://github.com/Omozarkar69/board-election-ballot/actions/workflows/contract-ci.yml/badge.svg?branch=main)
+
 A boardroom election console for private weighted voting and publicly verifiable aggregate outcomes.
 
 ## Boardroom scenario
@@ -51,3 +53,6 @@ Frontend CI validates the UI. Contract CI validates Compact compilation and test
 
 Demo: [see the board election console](https://drive.google.com/file/d/1tUmh5BuoCrX1R5ozWo42vJ1Ke858IbR1/view?usp=sharing).
 
+## Verification
+
+Privacy is the product feature: board-member eligibility and aggregate totals are auditable, but each director’s candidate choice stays private. Run `npm test`, `npm run compile`, and `npm run build`; the five contract scenarios are documented in [TESTING.md](./TESTING.md), the product scope is in [PROPOSAL.md](./PROPOSAL.md), and both CI workflows run on every push and pull request.
