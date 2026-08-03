@@ -23,13 +23,17 @@ Its public ledger contains candidate vote totals, enrollment flags, nullifiers, 
 
 | Item | Recorded value |
 | --- | --- |
-| Chain | Midnight Preprod |
+| Chain | Midnight Preview |
 | Contract | `board_voting` |
-| Address | `e993870c54966c0b712be1f6066f7867a06a4be845e84366c91deed98850c3bb` |
-| Transaction | `dcb74c11c18bdecee5bfaaa4f4b4a334cefbf408d5f7f6ecc292d2586134124b` |
-| Confirmation | Preprod indexer confirmed |
+| Address | `ed12ee1919c913885d34ac06765cad97b70697825781261103728541f631dcac` |
+| Transaction | `005774db4e5f315bfcac95e7dfb5deeb13fa1e61ffcfb3d9f87880be47b7d66c52` |
+| Election deployer | `mn_addr_preview16hg5m688497gjt2gkglp8cjx2uvyy8lj6k22zt304slczk4mmvvq3k46zl` |
+| Chain timestamp | `2026-08-03T19:01:02.499Z` |
+| Confirmation | Preview indexer confirmed |
 
 ## Start the console
+
+Board-election test accounts can request tNight at the [Preview faucet](https://faucet.preview.midnight.network/).
 
 ```bash
 npm install
@@ -39,7 +43,7 @@ npm run build
 npm run dev
 ```
 
-Deployment is available for a configured Preprod wallet:
+Deployment is available for a configured Preview wallet:
 
 ```bash
 npm run deploy
