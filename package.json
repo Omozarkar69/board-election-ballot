@@ -6,7 +6,10 @@
     "compile": "npx nightforge compile",
     "deploy": "node deploy.mjs",
     "test": "vitest run",
+    "prepare:election-keys": "node scripts/sync-zk-assets.mjs",
+    "predev": "npm run prepare:election-keys",
     "dev": "vite",
+    "prebuild": "npm run prepare:election-keys",
     "build": "tsc && vite build"
   },
   "devDependencies": {
