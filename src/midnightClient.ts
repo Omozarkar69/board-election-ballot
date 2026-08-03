@@ -1,5 +1,6 @@
 import { CompiledContract } from '@midnight-ntwrk/compact-js';
 import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+const NETWORK_ID = import.meta.env.VITE_NETWORK_ID || 'preview';
 import { deployContract, findDeployedContract } from '@midnight-ntwrk/midnight-js-contracts';
 import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
 import { FetchZkConfigProvider } from '@midnight-ntwrk/midnight-js-fetch-zk-config-provider';
@@ -60,8 +61,8 @@ async function omoziBrowserProviders(wallet: ConnectedWallet) {
     zkConfigProvider,
     proofProvider: createProofProvider(provingProvider),
     walletProvider: {
-      getCoinPublicKey: () => parseCoinPublicKeyToHex(addresses.shieldedCoinPublicKey, 'preprod'),
-      getEncryptionPublicKey: () => parseEncPublicKeyToHex(addresses.shieldedEncryptionPublicKey, 'preprod'),
+      getCoinPublicKey: () => parseCoinPublicKeyToHex(addresses.shieldedCoinPublicKey, NETWORK_ID),
+      getEncryptionPublicKey: () => parseEncPublicKeyToHex(addresses.shieldedEncryptionPublicKey, NETWORK_ID),
       async balanceTx(tx: ledger.Transaction<any, any, any>) {
         const balanced = await wallet.balanceUnsealedTransaction(toHex(tx.serialize()));
         return ledger.Transaction.deserialize('signature', 'proof', 'binding', fromHex(balanced.tx));
@@ -86,7 +87,7 @@ function omoziBrowserWitnesses() {
 export async function deployBoardvotingContract(wallet: ConnectedWallet) {
   const { providers, addresses } = await omoziBrowserProviders(wallet);
   const compiledContract = CompiledContract.make('board_voting', contractModule.Contract).pipe(CompiledContract.withWitnesses(omoziBrowserWitnesses()));
-  const adminPubkey = fromHex(parseCoinPublicKeyToHex(addresses.shieldedCoinPublicKey, 'preprod'));
+  const adminPubkey = fromHex(parseCoinPublicKeyToHex(addresses.shieldedCoinPublicKey, NETWORK_ID));
   const electionId = new Uint8Array(32);
   electionId.set(new TextEncoder().encode('board-election-1'));
   const deployed = await deployContract(providers, {
@@ -109,6 +110,7 @@ export async function submitBoardvotingCircuit(
   const zkConfigProvider = omoziZkConfigProvider(location.origin + '/midnight/board_voting');
   const provingProvider = await wallet.getProvingProvider(zkConfigProvider);
   const providers = {
+    privateStateProvider: omoziPrivateStateProvider(),
     publicDataProvider: indexerPublicDataProvider(configuration.indexerUri, configuration.indexerWsUri),
     zkConfigProvider,
     proofProvider: createProofProvider(provingProvider),
@@ -140,4 +142,4 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).Buffer) {
   (globalThis as any).Buffer = Buffer;
 }
 
-setNetworkId(import.meta.env.VITE_NETWORK_ID || 'preprod');
+setNetworkId(NETWORK_ID);

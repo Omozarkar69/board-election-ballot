@@ -1,8 +1,8 @@
 {
-  "network": "preprod",
-  "contract": "board_voting",
-  "contractAddress": "e993870c54966c0b712be1f6066f7867a06a4be845e84366c91deed98850c3bb",
-  "transactionHash": "dcb74c11c18bdecee5bfaaa4f4b4a334cefbf408d5f7f6ecc292d2586134124b",
-  "transactionId": 498540,
-  "verifiedBy": "Midnight Preprod indexer"
+  "contractAddress": "ed12ee1919c913885d34ac06765cad97b70697825781261103728541f631dcac",
+  "network": "preview",
+  "deployedAt": "2026-08-03T19:01:02.499Z",
+  "deployer": "mn_addr_preview16hg5m688497gjt2gkglp8cjx2uvyy8lj6k22zt304slczk4mmvvq3k46zl",
+  "transactionHash": "005774db4e5f315bfcac95e7dfb5deeb13fa1e61ffcfb3d9f87880be47b7d66c52",
+  "electionId": "626f6172642d656c656374696f6e2d3100000000000000000000000000000000"
 }
