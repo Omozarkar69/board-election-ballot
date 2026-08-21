@@ -69,3 +69,7 @@ Demo: [see the board election console](https://drive.google.com/file/d/1tUmh5Buo
 ## Verification
 
 Privacy is the product feature: board-member eligibility and aggregate totals are auditable, but each director’s candidate choice stays private. Run `npm test`, `npm run compile`, and `npm run build`; the five contract scenarios are documented in [TESTING.md](./TESTING.md), the product scope is in [PROPOSAL.md](./PROPOSAL.md), and both CI workflows run on every push and pull request.
+
+## Election continuity
+
+Before operating Board Election Ballot, read the independent [security model](SECURITY.md) and [operations runbook](OPERATIONS.md). Runtime configuration is fail-closed and its executable checks live in [src/test/runtime-config.test.ts](src/test/runtime-config.test.ts).
