@@ -1,4 +1,5 @@
 {
+  "contractName": "board_voting",
   "contractAddress": "ed12ee1919c913885d34ac06765cad97b70697825781261103728541f631dcac",
   "network": "preview",
   "deployedAt": "2026-08-03T19:01:02.499Z",
