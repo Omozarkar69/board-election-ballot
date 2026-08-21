@@ -1,5 +1,9 @@
 # Product Proposal: Board Election Ballot
 
+**Track:** Other — corporate governance  
+**Election repository owner:** `Omozarkar69`  
+**Ballot status:** Preview-deployed MVP
+
 ## Problem
 
 Board elections need verifiable totals while protecting each director’s individual choice and share-weight witness.
@@ -25,4 +29,3 @@ Candidate totals, election phase, and nullifier activity can be audited. Individ
 - Duplicate ballots are blocked.
 - Candidate totals are accurate.
 - Closed elections cannot continue accepting votes.
-

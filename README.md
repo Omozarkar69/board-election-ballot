@@ -4,6 +4,15 @@
 
 A boardroom election console for private weighted voting and publicly verifiable aggregate outcomes.
 
+## Election observer packet
+
+| Ballot artifact | Location |
+| --- | --- |
+| Election proposal | [PROPOSAL.md](./PROPOSAL.md) |
+| Five contract scenarios | [board.test.ts](./src/test/board.test.ts) |
+| Observer verification steps | [TESTING.md](./TESTING.md) |
+| Preview election contract | [deployment.json](./deployment.json) |
+
 ## Boardroom scenario
 
 The project is designed for director elections where the existence of a ballot and the final totals should be auditable, but a director’s individual choice should remain private. The gold-and-navy interface exposes election phase, candidate totals, participation health, wallet readiness, privacy notes, and the deployed contract identity.
