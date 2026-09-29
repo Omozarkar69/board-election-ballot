@@ -24,8 +24,7 @@ describe('Board Election Ballot production configuration', () => {
   });
 
   it('prevents demo mode and network drift in production', () => {
-    expect(() => validateBoardElectionDeploymentRuntime({ networkId: 'preprod' })).toThrow(/Preview/);
+    expect(validateBoardElectionDeploymentRuntime({ networkId: 'preprod' }).networkId).toBe('preprod');
     expect(() => validateBoardElectionDeploymentRuntime({ production: true, demoMode: 'true' })).toThrow(/forbidden/);
   });
 });
-

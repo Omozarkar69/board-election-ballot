@@ -9,14 +9,15 @@ type RuntimeEnvironment = {
 export type VerifiedDeployment = {
   contractName: 'board_voting';
   contractAddress: string;
-  network: 'preview';
+  network: 'preview' | 'preprod';
   transactionHash: string;
   deployedAt: string;
 };
 
 const ADDRESS = /^[0-9a-f]{64}$/i;
-const TRANSACTION = /^[0-9a-f]{66}$/i;
+const TRANSACTION = /^(?:[0-9a-f]{64}|[0-9a-f]{66})$/i;
 const PREVIEW_FAUCET = 'https://faucet.preview.midnight.network/';
+const PREPROD_FAUCET = 'https://faucet.preprod.midnight.network/';
 
 export function verifyBoardElectionDeployment(value: unknown): VerifiedDeployment {
   if (!value || typeof value !== 'object') {
@@ -27,7 +28,7 @@ export function verifyBoardElectionDeployment(value: unknown): VerifiedDeploymen
   if (candidate.contractName !== 'board_voting') {
     throw new Error('Board Election Ballot: deployment belongs to a different contract.');
   }
-  if (candidate.network !== 'preview') {
+  if (candidate.network !== 'preview' && candidate.network !== 'preprod') {
     throw new Error('Board Election Ballot: only the independently deployed Preview contract is accepted.');
   }
   if (typeof candidate.contractAddress !== 'string' || !ADDRESS.test(candidate.contractAddress)) {
@@ -44,13 +45,13 @@ export function verifyBoardElectionDeployment(value: unknown): VerifiedDeploymen
 }
 
 export function validateBoardElectionDeploymentRuntime(env: RuntimeEnvironment) {
-  const networkId = env.networkId || 'preview';
-  const faucetUrl = env.faucetUrl || PREVIEW_FAUCET;
+  const networkId = env.networkId || 'preprod';
+  const faucetUrl = env.faucetUrl || (networkId === 'preprod' ? PREPROD_FAUCET : PREVIEW_FAUCET);
 
-  if (networkId !== 'preview') {
+  if (networkId !== 'preview' && networkId !== 'preprod') {
     throw new Error('Board Election Ballot: wallet network must be Preview.');
   }
-  if (faucetUrl !== PREVIEW_FAUCET) {
+  if (faucetUrl !== (networkId === 'preprod' ? PREPROD_FAUCET : PREVIEW_FAUCET)) {
     throw new Error('Board Election Ballot: faucet host is not the approved Preview faucet.');
   }
   if (env.contractAddress && !ADDRESS.test(env.contractAddress)) {
@@ -62,4 +63,3 @@ export function validateBoardElectionDeploymentRuntime(env: RuntimeEnvironment) 
 
   return { networkId, faucetUrl, contractAddress: env.contractAddress || null };
 }
-
