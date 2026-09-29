@@ -1,7 +1,15 @@
-import { useState, useEffect } from 'react';
-import { Shield, Play, Database, History, Wallet, Cpu, Lock } from 'lucide-react';
-import { submitBoardvotingCircuit } from './midnightClient';
-import { verifyBoardElectionDeployment, validateBoardElectionDeploymentRuntime } from './runtimeConfig';
+import OperatorSetup from './OperatorSetup';
+import { useState, useEffect } from "react";
+import {
+  deployBoardvotingContract,
+  boardSecret,
+  readBoardLedger,
+  submitBoardvotingCircuit,
+} from "./midnightClient";
+import {
+  verifyBoardElectionDeployment,
+  validateBoardElectionDeploymentRuntime,
+} from "./runtimeConfig";
 
 const RUNTIME = validateBoardElectionDeploymentRuntime({
   networkId: import.meta.env.VITE_NETWORK_ID,
@@ -12,7 +20,27 @@ const RUNTIME = validateBoardElectionDeploymentRuntime({
 });
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(() =>
+    ["dashboard", "walletHub", "deployer", "privacy"].includes(
+      window.location.hash.slice(2),
+    )
+      ? window.location.hash.slice(2)
+      : "home",
+  );
+  useEffect(() => {
+    const navigate = () => {
+      if (["#content", "#main-content"].includes(window.location.hash)) return;
+      const route = window.location.hash.slice(2);
+      setActiveTab(
+        ["dashboard", "walletHub", "deployer", "privacy"].includes(route)
+          ? route
+          : "home",
+      );
+      window.scrollTo(0, 0);
+    };
+    window.addEventListener("hashchange", navigate);
+    return () => window.removeEventListener("hashchange", navigate);
+  }, []);
   const [walletConnected, setWalletConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [walletBalance, setWalletBalance] = useState<string>("0.00");
@@ -27,8 +55,11 @@ export default function App() {
   const [isDeploying, setIsDeploying] = useState(false);
   const [deployStep, setDeployStep] = useState(0);
 
-  const [ledger, setLedger] = useState({ candidate_alice: 4, candidate_bob: 2, total_board_votes: 6, resolution_id: "RESOLVE-INC-2026" });
-  const [formValues, setFormValues] = useState({ candidate_choice: "ALICE", shareholder_sk: "" });
+  const [ledger, setLedger] = useState<{ candidate_alice: number; candidate_bob: number; total_board_votes: number; resolution_id: string } | null>(null);
+  const [formValues, setFormValues] = useState({
+    candidate_choice: "ALICE",
+    shareholder_sk: "0808080808080808080808080808080808080808080808080808080808080808",
+  });
   const [logs, setLogs] = useState<any[]>([]);
   const [isProving, setIsProving] = useState(false);
   const [provingStep, setProvingStep] = useState(0);
@@ -37,37 +68,56 @@ export default function App() {
     "Verifying shareholder voting allocation balance...",
     "Computing board nullifier key to prevent double voting...",
     "Hashing shielded candidate choice parameter...",
-    "Broadcasting board ballot proof..."
+    "Broadcasting board ballot proof...",
   ];
 
   const deploySteps = [
     "Setting up corporate board candidates list...",
     "Initializing quorum state variables...",
-    "Deploying board_voting.compact on-chain..."
+    "Deploying board_voting.compact on-chain...",
   ];
 
   useEffect(() => {
-    fetch('/deployment.json')
-      .then(response => {
-        if (!response.ok) throw new Error('Board Election Ballot: deployment.json could not be loaded.');
+    fetch("/deployment.json")
+      .then((response) => {
+        if (!response.ok)
+          throw new Error(
+            "Board Election Ballot: deployment.json could not be loaded.",
+          );
         return response.json();
       })
-      .then(deployment => {
+      .then((deployment) => {
         const verified = verifyBoardElectionDeployment(deployment);
-        if (RUNTIME.contractAddress && RUNTIME.contractAddress !== verified.contractAddress) {
-          throw new Error('Board Election Ballot: environment address does not match deployment evidence.');
+        if (
+          RUNTIME.contractAddress &&
+          RUNTIME.contractAddress !== verified.contractAddress
+        ) {
+          throw new Error(
+            "Board Election Ballot: environment address does not match deployment evidence.",
+          );
         }
-        setContractAddress(verified.contractAddress);
-        setContractDeployed(true);
+        if (verified.network === RUNTIME.networkId) {
+          setContractAddress(verified.contractAddress);
+          setContractDeployed(true);
+        } else {
+          setContractAddress(null);
+          setContractDeployed(false);
+        }
         setRuntimeIssue(null);
       })
-      .catch(error => {
+      .catch((error) => {
         setContractAddress(null);
         setContractDeployed(false);
-        setRuntimeIssue(error instanceof Error ? error.message : 'Board Election Ballot: configuration failed.');
+        setRuntimeIssue(
+          error instanceof Error
+            ? error.message
+            : "Board Election Ballot: configuration failed.",
+        );
       });
     const detectLace = () => {
-      const hasMidnightWallet = Object.values((window as any).midnight ?? {}).some((candidate: any) => typeof candidate?.connect === 'function');
+      const hasMidnightWallet = Object.values(
+        (window as any).midnight ?? {},
+      ).some((candidate: any) => typeof candidate?.connect === "function");
       setLaceDetected(hasMidnightWallet);
     };
     detectLace();
@@ -78,13 +128,25 @@ export default function App() {
   const connectLace = async () => {
     setConnectingWallet(true);
     try {
-      const candidates = Object.values((window as any).midnight ?? {}) as Array<{
+      const candidates = Object.values(
+        (window as any).midnight ?? {},
+      ) as Array<{
         connect?: (networkId: string) => Promise<any>;
         name?: string;
+        rdns?: string;
       }>;
-      const wallet = candidates.find(candidate => typeof candidate.connect === 'function');
+      const oneAm = candidates.find(
+        (c) =>
+          /1am/i.test(`${c.name ?? ""} ${c.rdns ?? ""}`) &&
+          typeof c.connect === "function",
+      );
+      const wallet =
+        oneAm ??
+        candidates.find((candidate) => typeof candidate.connect === "function");
       if (!wallet?.connect) {
-        throw new Error('No Midnight wallet connector was detected. Install 1AM or Lace and unlock it.');
+        throw new Error(
+          "No Midnight wallet connector was detected. Install 1AM or Lace and unlock it.",
+        );
       }
 
       const connected = await wallet.connect(RUNTIME.networkId);
@@ -101,267 +163,502 @@ export default function App() {
         setContractAddress(import.meta.env.VITE_CONTRACT_ADDRESS);
         setContractDeployed(true);
       }
-      logTransaction('wallet', 'MIDNIGHT WALLET CONNECTED', '—', 'Connected through the Midnight DApp Connector API');
+      logTransaction(
+        "wallet",
+        "MIDNIGHT WALLET CONNECTED",
+        "—",
+        "Connected through the Midnight DApp Connector API",
+      );
     } catch (err) {
-      console.error('Midnight wallet connection failed:', err);
-      alert(err instanceof Error ? err.message : 'Midnight wallet connection failed.');
+      console.error("Midnight wallet connection failed:", err);
+      const raw = err instanceof Error ? err.message : String(err || "");
+      const msg = (raw.includes("tabs:outgoing.message.ready") || raw.includes("No Listener")) ? "Wallet extension is asleep or locked. Please open and unlock your 1AM / Lace wallet extension, then retry." : (raw || "Midnight wallet connection failed.");
+      alert(msg);
     } finally {
       setConnectingWallet(false);
     }
   };
 
-
-
   const disconnectLace = () => {
     setWalletConnected(false);
     setWalletAddress(null);
     setWalletBalance("0.00");
-    logTransaction('0x0000...0000', 'LACE WALLET DISCONNECTED', '0.00 tNIGHT', 'Disconnected wallet context');
+    logTransaction(
+      "0x0000...0000",
+      "1AM WALLET DISCONNECTED",
+      "0.00 tNIGHT",
+      "Disconnected wallet context",
+    );
   };
 
   const requestFaucet = () => {
     if (!walletConnected) return;
-    window.open(RUNTIME.faucetUrl, '_blank', 'noopener,noreferrer');
-    logTransaction('—', 'FAUCET OPENED', '—', 'Funding must be confirmed by the official Midnight Preview faucet and wallet balance refresh.');
+    window.open(RUNTIME.faucetUrl, "_blank", "noopener,noreferrer");
+    logTransaction(
+      "—",
+      "FAUCET OPENED",
+      "—",
+      "Funding must be confirmed by the official Midnight Preview faucet and wallet balance refresh.",
+    );
   };
 
   const deployContractAction = async () => {
-    if (!contractAddress || runtimeIssue) {
-      alert('Board Election Ballot: no verified Preview deployment is available.');
+    if (!connectedWallet) {
+      alert("Connect a Midnight wallet before deploying.");
       return;
     }
-    setContractDeployed(true);
-    logTransaction('—', 'VERIFIED DEPLOYMENT ATTACHED', '—', `Using finalized Preview contract ${contractAddress}`);
+    setIsDeploying(true);
+    try {
+      const result = await deployBoardvotingContract(connectedWallet);
+      setContractAddress(result.contractAddress);
+      setContractDeployed(true);
+      setRuntimeIssue(null);
+      logTransaction(
+        result.txId,
+        "CONFIRMED ON MIDNIGHT",
+        "—",
+        `Fresh ${RUNTIME.networkId} deployment ${result.contractAddress}`,
+      );
+    } catch (error) {
+      alert(
+        error instanceof Error ? error.message : "Contract deployment failed.",
+      );
+    } finally {
+      setIsDeploying(false);
+    }
   };
 
   const voteBoard = async () => {
     if (!walletConnected || !contractDeployed || !contractAddress) return;
     try {
-      const result = await submitBoardvotingCircuit((window as any).__midnightConnectedWallet, contractAddress, 'castVote', [BigInt(formValues.candidate_choice === 'ALICE' ? 0 : 1)]);
-      setLedger(prev => formValues.candidate_choice === 'ALICE' ? { ...prev, candidate_alice: prev.candidate_alice + 1, total_board_votes: prev.total_board_votes + 1 } : { ...prev, candidate_bob: prev.candidate_bob + 1, total_board_votes: prev.total_board_votes + 1 });
-      logTransaction(result.txId, 'CONFIRMED ON MIDNIGHT', '—', 'Confirmed castVote on ' + contractAddress);
+      const result = await submitBoardvotingCircuit(
+        (window as any).__midnightConnectedWallet,
+        contractAddress,
+        "castVote",
+        [BigInt(formValues.candidate_choice === "ALICE" ? 0 : 1)],
+        { secretKey: boardSecret(formValues.shareholder_sk) },
+      );
+      const chain = await readBoardLedger(
+        (window as any).__midnightConnectedWallet,
+        contractAddress,
+      );
+      setLedger({
+        candidate_alice: chain.aliceVotes,
+        candidate_bob: chain.bobVotes,
+        total_board_votes: chain.voterCount,
+        resolution_id: chain.electionId.slice(0, 18) + "…",
+      });
+      logTransaction(
+        result.txId,
+        "CONFIRMED ON MIDNIGHT",
+        "—",
+        "Confirmed castVote on " + contractAddress,
+      );
       return;
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'The Midnight transaction failed.');
-      logTransaction('—', 'TRANSACTION FAILED', '—', err instanceof Error ? err.message : 'Unknown transaction failure');
+      alert(
+        err instanceof Error ? err.message : "The Midnight transaction failed.",
+      );
+      logTransaction(
+        "—",
+        "TRANSACTION FAILED",
+        "—",
+        err instanceof Error ? err.message : "Unknown transaction failure",
+      );
       return;
     }
-
   };
 
-  const logTransaction = (hash: string, status: string, fee: string, details: string) => {
-    setLogs(prev => [
+  const logTransaction = (
+    hash: string,
+    status: string,
+    fee: string,
+    details: string,
+  ) => {
+    setLogs((prev) => [
       {
         hash,
-        timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
+        timestamp: new Date().toISOString().replace("T", " ").substring(0, 19),
         status,
         fee,
-        details
+        details,
       },
-      ...prev
+      ...prev,
     ]);
   };
 
-  if (runtimeIssue) {
-    return (
-      <main role="alert" style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: '32px', background: '#080b12', color: '#f8fafc' }}>
-        <section style={{ width: 'min(620px, 100%)', border: '1px solid #ef4444', borderRadius: '18px', padding: '28px', background: '#151922' }}>
-          <p style={{ margin: 0, color: '#fca5a5', fontWeight: 800, letterSpacing: '0.08em' }}>SAFE START BLOCKED</p>
-          <h1 style={{ margin: '12px 0', fontSize: 'clamp(1.7rem, 5vw, 2.6rem)' }}>Board Election Ballot</h1>
-          <p style={{ lineHeight: 1.65, color: '#cbd5e1' }}>{runtimeIssue}</p>
-          <p style={{ lineHeight: 1.65, color: '#94a3b8' }}>No wallet or contract operation was attempted. Restore this repository's own Preview deployment record, then reload.</p>
-          <button onClick={() => window.location.reload()} style={{ marginTop: '8px', padding: '12px 18px', border: 0, borderRadius: '10px', fontWeight: 800, cursor: 'pointer' }}>Retry configuration</button>
-        </section>
-      </main>
-    );
-  }
-
+  const submitWithStatus = async (action: () => Promise<void>) => {
+    if (isProving) return;
+    setIsProving(true);
+    try {
+      await action();
+    } finally {
+      setIsProving(false);
+    }
+  };
+  const ready = walletConnected && contractDeployed && !runtimeIssue;
+  const pages = [
+    ["dashboard", "Open ballot"],
+    ["walletHub", "Wallet"],
+    ["deployer", "Contract"],
+    ["privacy", "Privacy"],
+  ];
   return (
-    <div style={{ maxWidth: '1200px', margin: '0 auto', fontFamily: 'Outfit, sans-serif' }}>
-      
-      {/* Header */}
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 0', borderBottom: '1px solid var(--border-color)', marginBottom: '30px' }}>
-        <div>
-          <span style={{ padding: '4px 10px', fontSize: '0.75rem', borderRadius: '20px', background: 'rgba(245, 130, 48, 0.15)', color: '#ff9f43', border: '1px solid rgba(245, 130, 48, 0.3)', fontWeight: 600 }}>Project 7</span>
-          <h1 style={{ fontSize: '2rem', fontWeight: 'bold', marginTop: '6px' }}>Board Election Ballot</h1>
-        </div>
-        <div>
-          {walletConnected ? (
-            <div style={{ background: 'rgba(245, 130, 48, 0.08)', border: '1px solid rgba(245, 130, 48, 0.25)', borderRadius: '12px', padding: '8px 16px' }}>
-              Balance: <strong style={{ color: '#f58220' }}>{walletBalance} tNIGHT</strong>
-            </div>
-          ) : (
-            <button onClick={connectLace} style={{ width: 'auto' }}>Connect Lace Wallet</button>
-          )}
-        </div>
+    <div className="app-shell">
+      <a
+        className="skip-link"
+        href="#main-content"
+        onClick={(event) => {
+          event.preventDefault();
+          document.getElementById("main-content")?.focus();
+        }}
+      >
+        Skip to content
+      </a>
+      <header className="masthead">
+        <a className="brand" href="#/">
+          Board / Ballot
+        </a>
+        <nav aria-label="Main navigation">
+          <a href="#/" aria-current={activeTab === "home" ? "page" : undefined}>
+            About
+          </a>
+          <a
+            href="#/dashboard"
+            aria-current={activeTab !== "home" ? "page" : undefined}
+          >
+            Workspace ↗
+          </a>
+        </nav>
       </header>
-
-<section className="home-dashboard" aria-labelledby="home-dashboard-title">
-        <div className="home-dashboard__lead">
-          <span className="home-kicker">Boardroom console</span>
-          <h2 id="home-dashboard-title">Election control</h2>
-          <p>Cast a board decision without exposing your share balance.</p>
-          <div className="home-actions">
-            <button type="button" onClick={() => setActiveTab('dashboard')}>Open Workspace</button>
-            <button type="button" className="home-secondary" onClick={() => setActiveTab('privacy')}>Read Privacy Model</button>
-          </div>
-        </div>
-        <div className="home-dashboard__grid">
-          <article className="home-card"><span>Network</span><strong>Midnight Preview</strong><small>{contractDeployed ? 'Contract verified' : 'Contract setup pending'}</small></article>
-          <article className="home-card"><span>Current signal</span><strong>Shareholder ballot live</strong><small>Weighted vote protected</small></article>
-          <article className="home-card"><span>Wallet session</span><strong>{walletConnected ? 'Connected' : 'Not connected'}</strong><small>{walletConnected ? walletBalance + ' tNIGHT available' : 'Connect 1AM to continue'}</small></article>
-          <article className="home-card"><span>Contract address</span><strong className="home-address">{contractAddress ? contractAddress.slice(0, 14) + '…' : 'Awaiting deployment'}</strong><small>Unique project deployment</small></article>
-        </div>
-      </section>
-
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: '10px', marginBottom: '30px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '10px' }}>
-        <button onClick={() => setActiveTab('dashboard')} style={{ width: 'auto', padding: '10px 20px', background: activeTab === 'dashboard' ? 'var(--color-primary)' : 'transparent', color: activeTab === 'dashboard' ? 'white' : 'var(--text-secondary)', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>🗳️ Cast Board Vote</button>
-        <button onClick={() => setActiveTab('deployer')} style={{ width: 'auto', padding: '10px 20px', background: activeTab === 'deployer' ? 'var(--color-primary)' : 'transparent', color: activeTab === 'deployer' ? 'white' : 'var(--text-secondary)', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>🏢 Election Deployer</button>
-        <button onClick={() => setActiveTab('walletHub')} style={{ width: 'auto', padding: '10px 20px', background: activeTab === 'walletHub' ? 'var(--color-primary)' : 'transparent', color: activeTab === 'walletHub' ? 'white' : 'var(--text-secondary)', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>🔑 Director Wallet</button>
-        <button onClick={() => setActiveTab('privacy')} style={{ width: 'auto', padding: '10px 20px', background: activeTab === 'privacy' ? 'var(--color-primary)' : 'transparent', color: activeTab === 'privacy' ? 'white' : 'var(--text-secondary)', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>🔒 Ballot Privacy Model</button>
-      </div>
-
-      <main style={{ minHeight: '400px' }}>
-        {activeTab === 'dashboard' && (
-          <div>
-            {(!walletConnected || !contractDeployed) && (
-              <div style={{ background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239,68,68,0.2)', padding: '20px', borderRadius: '12px', marginBottom: '30px', textAlign: 'center' }}>
-                <h3 style={{ margin: 0, color: '#f87171' }}>⚠️ Setup Required</h3>
-                <p style={{ color: 'var(--text-secondary)', margin: '8px 0 0 0', fontSize: '0.9rem' }}>
-                  {!walletConnected ? "Please connect your Lace Wallet in the Wallet Hub." : "Please deploy the Compact contract in the ZK Deployer."}
+      {activeTab === "home" ? (
+        <main id="main-content" tabIndex={-1} className="landing">
+          <section className="hero">
+            <div className="hero-copy">
+              <p className="eyebrow">Private board elections</p>
+              <h1>
+                A clear process.<em>An independent vote.</em>
+              </h1>
+              <p className="intro">
+                A dedicated voting workspace for board participants. Select a
+                candidate, provide your voting credential, and review your
+                transaction before submitting.
+              </p>
+              <div className="actions">
+                <a className="button" href="#/dashboard">
+                  Open ballot ↗
+                </a>
+                <a href="#/privacy">Understand privacy</a>
+              </div>
+            </div>
+            <aside className="hero-note">
+              <span className="note-mark" aria-hidden="true">
+                ✓
+              </span>
+              <h2>Election protocol</h2>
+              <p>
+                Confirm the election and contract address with your
+                administrator before voting. A wallet connection alone does not
+                establish eligibility.
+              </p>
+            </aside>
+          </section>
+          <section className="process" aria-label="How it works">
+            <article>
+              <span className="step">01</span>
+              <h2>Confirm the election</h2>
+              <p>
+                Start with the required credentials and a compatible wallet.
+              </p>
+            </article>
+            <article>
+              <span className="step">02</span>
+              <h2>Select your candidate</h2>
+              <p>Review your inputs carefully before sending a transaction.</p>
+            </article>
+            <article>
+              <span className="step">03</span>
+              <h2>Approve your ballot</h2>
+              <p>Treat an action as complete only after confirmation.</p>
+            </article>
+          </section>
+          <section className="privacy-note">
+            <h2>Privacy has boundaries.</h2>
+            <p>
+              The application uses a private credential for the voting proof.
+              Aggregate candidate totals and election data can be public. Do not
+              assume this hides transaction timing or wallet metadata, or
+              provides secret-ballot guarantees beyond the contract.
+            </p>
+          </section>
+        </main>
+      ) : (
+        <div className="workspace">
+          <nav className="workspace-nav" aria-label="Workspace navigation">
+            {pages.map(([route, label]) => (
+              <a
+                key={route}
+                href={"#/" + route}
+                aria-current={activeTab === route ? "page" : undefined}
+              >
+                {label}
+              </a>
+            ))}
+          </nav>
+          <main id="main-content" tabIndex={-1} className="workspace-main">
+            <div className="workspace-heading">
+              <div>
+                <p className="eyebrow">Private board elections</p>
+                <h1>{pages.find(([route]) => route === activeTab)?.[1]}</h1>
+              </div>
+              <span className="network">Midnight {RUNTIME.networkId}</span>
+            </div>
+            {runtimeIssue ? (
+              <section className="notice" role="alert">
+                <h2>Configuration needs attention</h2>
+                <p>{runtimeIssue}</p>
+                <p>
+                  Wallet and contract actions are blocked until this
+                  repository’s deployment configuration is restored.
                 </p>
+                <button onClick={() => window.location.reload()}>
+                  Retry configuration
+                </button>
+              </section>
+            ) : null}
+            {isProving && (
+              <div className="notice" role="status">
+                Awaiting wallet approval, proof generation, and confirmation.
+                Check your wallet; do not submit again.
               </div>
             )}
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '30px', opacity: (walletConnected && contractDeployed) ? 1 : 0.4, pointerEvents: (walletConnected && contractDeployed) ? 'auto' : 'none' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                <section style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '16px', padding: '24px' }}>
-                  <h2 style={{ fontSize: '1.25rem', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px', color: '#ff9f43' }}><Database className="w-5 h-5" /> Voting Ledger</h2>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <div style={{ background: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>RESOLVING ID</span>
-                      <div style={{ fontSize: '1.4rem', fontWeight: 'bold' }}>{ledger.resolution_id}</div>
-                    </div>
-                    <div style={{ background: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>TOTAL BALLOTS SUBMITTED</span>
-                      <div style={{ fontSize: '1.4rem', fontWeight: 'bold' }}>{ledger.total_board_votes} members</div>
-                    </div>
+            {activeTab === "dashboard" && (
+              <>
+                {!ready && (
+                  <div className="notice">
+                    <strong>Before you begin</strong>
+                    <p>
+                      {!walletConnected
+                        ? "Connect your wallet to continue."
+                        : "A contract must be configured before submitting."}
+                    </p>
+                    <a href={!walletConnected ? "#/walletHub" : "#/deployer"}>
+                      {!walletConnected
+                        ? "Go to wallet →"
+                        : "Review contract →"}
+                    </a>
                   </div>
-                </section>
-              </div>
-
-              <div>
-                <section style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '16px', padding: '24px' }}>
-                  <h2 style={{ fontSize: '1.25rem', marginBottom: '16px', color: '#ff9f43', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Play className="w-5 h-5" /> Vote Ballot
-                  </h2>
-                  <div style={{ marginBottom: '16px' }}>
-                    <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>Select Candidate Choice</label>
-                    <select value={formValues.candidate_choice} onChange={e => setFormValues({ ...formValues, candidate_choice: e.target.value })}>
-                      <option value="ALICE">ALICE (Incumbent Board President)</option>
-                      <option value="BOB">BOB (Advisory Director)</option>
-                    </select>
-                  </div>
-                  <div style={{ marginBottom: '20px' }}>
-                    <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>Shareholder Seed Key</label>
-                    <input type="password" value={formValues.shareholder_sk} onChange={e => setFormValues({ ...formValues, shareholder_sk: e.target.value })} />
-                  </div>
-                  <button onClick={voteBoard} disabled={isProving}>
-                    {isProving ? "Constructing Ballot proof..." : "Cast Private Board Vote"}
-                  </button>
-
-                  {isProving && (
-                    <div style={{ marginTop: '16px', padding: '12px', background: 'rgba(245,130,48,0.05)', border: '1px dashed #f58220', borderRadius: '8px', fontSize: '0.8rem' }}>
-                      {proofSteps.map((step, idx) => (
-                        <div key={idx} style={{ padding: '3px 0', color: idx === provingStep ? 'white' : 'var(--text-secondary)', opacity: idx <= provingStep ? 1 : 0.4 }}>
-                          {idx < provingStep ? '✓' : '●'} {step}
-                        </div>
-                      ))}
-                    </div>
+                )}
+                <div className="task-grid">
+                  <section className="panel form-panel">
+                    <h2>Cast your ballot</h2>
+                    <fieldset disabled={!ready || isProving}>
+                      <legend className="sr-only">Cast your ballot</legend>
+                      <label>
+                        Candidate
+                        <select
+                          value={formValues.candidate_choice}
+                          onChange={(e) =>
+                            setFormValues({
+                              ...formValues,
+                              candidate_choice: e.target.value,
+                            })
+                          }
+                        >
+                          <option value="ALICE">Alice</option>
+                          <option value="BOB">Bob</option>
+                        </select>
+                      </label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', background: 'rgba(99, 102, 241, 0.08)', borderRadius: '8px', border: '1px solid rgba(99, 102, 241, 0.2)', margin: '14px 0' }}>
+                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 8px #22c55e' }} />
+                        <span style={{ fontSize: '0.85rem', color: '#cbd5e1' }}>Shielded Shareholder Key Active</span>
+                      </div>
+                      <details style={{ marginBottom: '16px', fontSize: '0.8rem', color: '#94a3b8' }}>
+                        <summary style={{ cursor: 'pointer', padding: '4px 0', userSelect: 'none' }}>Advanced / Custom Key</summary>
+                        <label style={{ display: 'block', marginTop: '8px' }}>
+                          Shareholder credential key
+                          <input
+                            type="password"
+                            value={formValues.shareholder_sk}
+                            onChange={(e) =>
+                              setFormValues({
+                                ...formValues,
+                                shareholder_sk: e.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                      </details>
+                      <button
+                        disabled={
+                          !walletConnected || !contractDeployed || isProving
+                        }
+                        onClick={() => void submitWithStatus(voteBoard)}
+                      >
+                        Submit ballot
+                      </button>
+                    </fieldset>
+                  </section>
+                  <aside className="panel context-panel">
+                    <h2>Election record</h2>
+                    {ledger && logs.some((log) =>
+                      log.details.startsWith("Confirmed castVote"),
+                    ) ? (
+                      <dl>
+                        <dt>Election</dt>
+                        <dd>{ledger.resolution_id}</dd>
+                        <dt>Recorded voters</dt>
+                        <dd>{ledger.total_board_votes}</dd>
+                        <dt>Alice / Bob</dt>
+                        <dd>
+                          {ledger.candidate_alice} / {ledger.candidate_bob}
+                        </dd>
+                      </dl>
+                    ) : (
+                      <p>
+                        Election totals have not been loaded. No sample counts
+                        are shown. Confirm the election details with your
+                        administrator.
+                      </p>
+                    )}
+                    <hr />
+                    <h3>Before approving</h3>
+                    <p>
+                      Confirm the election and contract address with your
+                      administrator before voting. A wallet connection alone
+                      does not establish eligibility.
+                    </p>
+                  </aside>
+                </div>
+              </>
+            )}
+            {activeTab === "walletHub" && (
+              <div className="task-grid">
+                <section className="panel">
+                  <h2>Wallet connection</h2>
+                  <p>
+                    {laceDetected
+                      ? "A compatible wallet connector is available."
+                      : "Install and unlock a compatible Midnight wallet such as 1AM or Lace."}
+                  </p>
+                  {walletConnected ? (
+                    <>
+                      <p className="address">{walletAddress}</p>
+                      <p>Reported balance: {walletBalance} tNIGHT</p>
+                      <button className="secondary" onClick={disconnectLace}>
+                        Disconnect wallet
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      disabled={connectingWallet}
+                      onClick={connectLace}
+                    >
+                      {connectingWallet ? "Connecting…" : "Connect wallet"}
+                    </button>
                   )}
                 </section>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'deployer' && (
-          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '16px', padding: '30px' }}>
-            <h2 style={{ fontSize: '1.4rem', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', color: '#ff9f43' }}>
-              <Cpu className="w-6 h-6" /> Board Voting Deployer
-            </h2>
-            {contractDeployed ? (
-              <p style={{ color: '#10b981' }}>Deployed Preview Address: {contractAddress}</p>
-            ) : (
-              <button onClick={deployContractAction} disabled={isDeploying || !walletConnected}>
-                {isDeploying ? "Deploying..." : "Compile & Deploy Contract"}
-              </button>
-            )}
-
-            {isDeploying && (
-              <div style={{ marginTop: '16px', padding: '12px', background: 'rgba(245, 130, 48, 0.05)', border: '1px dashed #f58220', borderRadius: '8px', fontSize: '0.8rem' }}>
-                {deploySteps.map((step, idx) => (
-                  <div key={idx} style={{ padding: '3px 0', color: idx === deployStep ? 'white' : 'var(--text-secondary)', opacity: idx <= deployStep ? 1 : 0.4 }}>
-                    {idx < deployStep ? '✓' : '●'} {step}
-                  </div>
-                ))}
+                <section className="panel">
+                  <h2>Test-network funding</h2>
+                  <p>
+                    The faucet opens in a separate tab. Funding is not confirmed
+                    by opening the page; check your wallet balance.
+                  </p>
+                  <button
+                    disabled={!walletConnected}
+                    onClick={requestFaucet}
+                  >
+                    Open faucet ↗
+                  </button>
+                </section>
               </div>
             )}
-          </div>
-        )}
-
-        {activeTab === 'walletHub' && (
-          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '16px', padding: '30px' }}>
-            <h2 style={{ fontSize: '1.4rem', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', color: '#ff9f43' }}>
-              <Wallet className="w-6 h-6" /> Wallet Hub & Actions
-            </h2>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px', marginBottom: '30px' }}>
-              <div style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--border-color)', padding: '24px', borderRadius: '12px' }}>
-                <h3>Lace Account</h3>
-                {walletConnected ? (
-                  <div>
-                    <div style={{ fontFamily: 'monospace', wordBreak: 'break-all', fontSize: '0.85rem', marginBottom: '10px' }}>{walletAddress}</div>
-                    <button onClick={disconnectLace} style={{ width: 'auto', background: '#dc2626' }}>Disconnect</button>
-                  </div>
+            {activeTab === 'deployer' && <OperatorSetup wallet={walletConnected ? connectedWallet : null} address={runtimeIssue ? null : contractAddress} />}
+            {activeTab === "deployer" && (
+              <section className="panel">
+                <h2>Contract configuration</h2>
+                <p>
+                  Confirm this address and network before approving a
+                  transaction.
+                </p>
+                {contractDeployed ? (
+                  <p className="address">{contractAddress}</p>
                 ) : (
-                  <button onClick={connectLace} style={{ width: 'auto' }}>Connect Wallet</button>
+                  <>
+                    <p>No matching contract is configured.</p>
+                    <button
+                      disabled={
+                        !walletConnected || isDeploying
+                      }
+                      onClick={deployContractAction}
+                    >
+                      {isDeploying ? "Deploying…" : "Deploy contract"}
+                    </button>
+                  </>
                 )}
-              </div>
-              <div style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--border-color)', padding: '24px', borderRadius: '12px' }}>
-                <h3>Get tNIGHT</h3>
-                <button onClick={requestFaucet} disabled={!walletConnected || faucetLoading}>
-                  {faucetLoading ? "Requesting..." : "Mint Faucet Tokens"}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'privacy' && (
-          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '16px', padding: '30px' }}>
-            <h2 style={{ fontSize: '1.4rem', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', color: '#ff9f43' }}>
-              <Lock className="w-6 h-6" /> Zero-Knowledge Privacy Model
-            </h2>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px' }}>
-              <div style={{ background: 'rgba(16, 185, 129, 0.03)', border: '1px solid rgba(16, 185, 129, 0.15)', padding: '24px', borderRadius: '12px' }}>
-                <h3 style={{ color: '#10b981' }}>Can Learn:</h3>
-                <ul>
-                  <li>Corporate voting registry logic code.</li>
-                  <li>Aggregate candidate counts.</li>
-                </ul>
-              </div>
-              <div style={{ background: 'rgba(239, 68, 68, 0.03)', border: '1px solid rgba(239, 68, 68, 0.15)', padding: '24px', borderRadius: '12px' }}>
-                <h3 style={{ color: '#f87171' }}>Cannot Learn:</h3>
-                <ul>
-                  <li>Which board member voted for Alice or Bob.</li>
-                  <li>Shareholder credential keys.</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        )}
-      </main>
+              </section>
+            )}
+            {activeTab === "privacy" && (
+              <section className="panel privacy-detail">
+                <h2>What this application protects</h2>
+                <p>
+                  The application uses a private credential for the voting
+                  proof. Aggregate candidate totals and election data can be
+                  public. Do not assume this hides transaction timing or wallet
+                  metadata, or provides secret-ballot guarantees beyond the
+                  contract.
+                </p>
+                <h3>Your responsibility</h3>
+                <p>
+                  Use a dedicated application credential. Never enter your
+                  wallet recovery phrase.
+                </p>
+                <p>
+                  Keep credential secrets on a trusted device. Check wallet
+                  requests and the configured contract. Do not share secret
+                  inputs, screenshots of credentials, or sensitive personal
+                  information.
+                </p>
+                <h3>Confirmation matters</h3>
+                <p>
+                  A wallet connection or submitted request is not evidence of a
+                  successful transaction. Review the session activity and your
+                  wallet for confirmation.
+                </p>
+              </section>
+            )}
+            {(activeTab === "dashboard" || activeTab === "walletHub") && (
+              <section className="activity panel" aria-live="polite">
+                <h2>Activity this session</h2>
+                {logs.length === 0 ? (
+                  <p>
+                    No activity yet. Completed actions and errors will appear
+                    here.
+                  </p>
+                ) : (
+                  <ol>
+                    {logs.map((log, index) => (
+                      <li key={index}>
+                        <strong>{log.status}</strong>
+                        <time>{log.timestamp}</time>
+                        <p>{log.details}</p>
+                        <code>{log.hash}</code>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </section>
+            )}
+          </main>
+        </div>
+      )}
+      <footer>
+        <span>Board / Ballot</span>
+        <span>
+          Midnight application · Review privacy before using real data.
+        </span>
+        <a href="#/privacy">Privacy notes</a>
+      </footer>
     </div>
   );
 }
